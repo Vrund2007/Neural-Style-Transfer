@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AdaIN Style Transfer</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #0b0f19;
+            --card-bg: rgba(23, 32, 51, 0.75);
+            --card-border: rgba(255, 255, 255, 0.08);
+            --primary-accent: #4f46e5;
+            --primary-hover: #4338ca;
+            --text-main: #f1f5f9;
+            --text-muted: #94a3b8;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            min-height: 100vh;
+            overflow-x: hidden;
+            position: relative;
+            padding-top: 90px;
+        }
+
+        /* Subtle Interactive Neural Canvas */
+        #neuralCanvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .relative-z {
+            position: relative;
+            z-index: 1;
+        }
+
+        /* GUARANTEED STICKY NAVBAR */
+        .navbar {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            width: 100% !important;
+            z-index: 99999 !important;
+            background: rgba(11, 15, 25, 0.95) !important;
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+            padding: 0.85rem 0;
+        }
+        .navbar-brand {
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 700;
+            font-size: 1.4rem;
+            color: #ffffff !important;
+            letter-spacing: 0.5px;
+            display: inline-flex;
+            align-items: center;
+        }
+        .navbar-brand i {
+            color: #818cf8;
+            filter: drop-shadow(0 0 6px rgba(129, 140, 248, 0.5));
+        }
+        .nav-link {
+            color: #cbd5e1 !important;
+            font-weight: 500;
+            font-size: 0.95rem;
+            margin: 0 0.6rem;
+            padding: 0.4rem 0.8rem !important;
+            border-radius: 6px;
+            transition: all 0.2s ease;
+        }
+        .nav-link:hover {
+            color: #ffffff !important;
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        /* Hero Section */
+        .header-section {
+            padding: 3.5rem 0 2rem;
+            text-align: center;
+        }
+        .header-title {
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 700;
+            font-size: 3rem;
+            color: #f8fafc;
+            margin-bottom: 1rem;
+            letter-spacing: 1px;
+        }
+        .header-subtitle {
+            font-size: 1.1rem;
+            color: var(--text-muted);
+            max-width: 620px;
+            margin: 0 auto;
+            line-height: 1.6;
+        }
+
+        /* Clean Dull Dark Cards */
+        .card-custom {
+            background: var(--card-bg);
+            backdrop-filter: blur(8px);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4);
+            overflow: hidden;
+        }
+        .card-custom-header {
+            background: rgba(255, 255, 255, 0.03);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+            padding: 1rem 1.25rem;
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 700;
+            font-size: 0.85rem;
+            letter-spacing: 1px;
+            color: #e2e8f0;
+            text-transform: uppercase;
+        }
+
+        /* Image Preview Box */
+        .preview-image {
+            width: 100%;
+            height: 280px;
+            object-fit: contain;
+            background-color: #070a12;
+            border: 2px dashed #1e293b;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #64748b;
+            font-size: 1rem;
+            overflow: hidden;
+            transition: border-color 0.2s;
+            cursor: pointer;
+        }
+        .preview-image:hover {
+            border-color: #334155;
+        }
+        .preview-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        /* Inputs & Controls */
+        .form-control {
+            background-color: #0f172a;
+            border: 1px solid #1e293b;
+            color: #f8fafc;
+            font-size: 0.9rem;
+            border-radius: 8px;
+        }
+        .form-control:focus {
+            background-color: #0f172a;
+            border-color: var(--primary-accent);
+            color: #f8fafc;
+            box-shadow: 0 0 0 0.2rem rgba(79, 70, 229, 0.25);
+        }
+
+        /* Solid Clean Button */
+        .btn-primary {
+            background-color: var(--primary-accent);
+            border: none;
+            padding: 12px 40px;
+            font-size: 1.05rem;
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 700;
+            border-radius: 50px;
+            transition: background-color 0.2s, transform 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #ffffff;
+        }
+        .btn-primary:hover {
+            background-color: var(--primary-hover);
+            transform: translateY(-1px);
+            color: #ffffff;
+        }
+
+        .btn-demo {
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #f1f5f9;
+            background: rgba(255, 255, 255, 0.05);
+            transition: all 0.2s ease;
+        }
+        .btn-demo:hover {
+            background: rgba(79, 70, 229, 0.3);
+            border-color: var(--primary-accent);
+            color: #ffffff;
+        }
+
+        /* Clean Range Slider */
+        .control-section {
+            background: rgba(15, 23, 42, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 14px;
+            padding: 1.5rem;
+        }
+        #alphaRange {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 8px;
+            background: #1e293b;
+            border-radius: 10px;
+            outline: none;
+        }
+        #alphaRange::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: var(--primary-accent);
+            cursor: pointer;
+            border: 2px solid #ffffff;
+        }
+
+        /* Original Example Flow Styling */
+        .examples-section {
+            margin-top: 4rem;
+        }
+        .example-flow {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            padding: 1.25rem;
+            border-radius: 16px;
+            background: rgba(15, 23, 42, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .example-flow:hover {
+            background: rgba(30, 41, 59, 0.7);
+            border-color: var(--primary-accent);
+        }
+        .example-inputs {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        .example-output {
+            flex: 1;
+        }
+        .example-arrow {
+            color: var(--primary-accent);
+            font-size: 1.5rem;
+            font-weight: 700;
+            line-height: 1;
+            text-align: center;
+        }
+        .example-role {
+            font-size: 0.8rem;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            color: #cbd5e1;
+            margin-bottom: 0.4rem;
+            text-transform: uppercase;
+        }
+        .example-image {
+            width: 100%;
+            height: 170px;
+            object-fit: contain;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(15, 23, 42, 0.8);
+        }
+        .example-output .example-image {
+            height: 360px;
+        }
+
+        @media (max-width: 767.98px) {
+            .example-flow {
+                flex-direction: column;
+            }
+            .example-arrow {
+                transform: rotate(90deg);
+                margin: 0.5rem 0;
+            }
+            .example-output .example-image {
+                height: 220px;
+            }
+        }
+
+        /* FAQ Styling */
+        .faq-section {
+            margin-top: 4rem;
+        }
+        .faq-section .accordion-item {
+            background: rgba(23, 32, 51, 0.75);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            margin-bottom: 0.75rem;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .faq-section .accordion-button {
+            background: rgba(15, 23, 42, 0.75);
+            color: #e2e8f0;
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+        .faq-section .accordion-button:not(.collapsed) {
+            background: rgba(79, 70, 229, 0.15);
+            color: #ffffff;
+            box-shadow: none;
+        }
+
+        /* Footer */
+        .footer-section {
+            background: rgba(11, 15, 25, 0.95);
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            padding: 3rem 0 2rem;
+            margin-top: 5rem;
+            color: #94a3b8;
+        }
+
+        /* Loader */
+        .loader-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(11, 15, 25, 0.9);
+            backdrop-filter: blur(5px);
+            z-index: 999999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+        .loader-overlay.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+        .simple-spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid rgba(255,255,255,0.1);
+            border-top-color: var(--primary-accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Background Canvas for Neural Particle Animation -->
+    <canvas id="neuralCanvas"></canvas>
+
+    <!-- GUARANTEED STICKY NAVBAR -->
+    <nav class="navbar navbar-expand-lg">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <svg class="me-2" width="30" height="30" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect width="36" height="36" rx="8" fill="#1e293b"/>
+                    <path d="M18 7L28 12.5V23.5L18 29L8 23.5V12.5L18 7Z" stroke="#818cf8" stroke-width="2" stroke-linejoin="round"/>
+                    <circle cx="18" cy="18" r="3.5" fill="#6366f1"/>
+                    <circle cx="18" cy="10" r="2" fill="#818cf8"/>
+                    <circle cx="25" cy="14" r="2" fill="#818cf8"/>
+                    <circle cx="25" cy="22" r="2" fill="#818cf8"/>
+                    <circle cx="18" cy="26" r="2" fill="#818cf8"/>
+                    <circle cx="11" cy="22" r="2" fill="#818cf8"/>
+                    <circle cx="11" cy="14" r="2" fill="#818cf8"/>
+                    <line x1="18" y1="14.5" x2="18" y2="12" stroke="#818cf8" stroke-width="1.5"/>
+                    <line x1="21" y1="16.5" x2="23" y2="15" stroke="#818cf8" stroke-width="1.5"/>
+                    <line x1="21" y1="19.5" x2="23" y2="21" stroke="#818cf8" stroke-width="1.5"/>
+                    <line x1="18" y1="21.5" x2="18" y2="24" stroke="#818cf8" stroke-width="1.5"/>
+                    <line x1="15" y1="19.5" x2="13" y2="21" stroke="#818cf8" stroke-width="1.5"/>
+                    <line x1="15" y1="16.5" x2="13" y2="15" stroke="#818cf8" stroke-width="1.5"/>
+                </svg>
+                NeuralArt
+            </a>
+            <button class="navbar-toggler navbar-dark" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item"><a class="nav-link" href="#studio">Studio</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#examples">Examples</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#faq">FAQ</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Container -->
+    <main class="relative-z">
+        <!-- Hero Header -->
+        <div class="header-section">
+            <div class="container">
+                <h1 class="header-title">ADAIN STYLE TRANSFER</h1>
+                <p class="header-subtitle">Upload a content image and style reference to generate stylized artwork in real time.</p>
+            </div>
+        </div>
+
+        <!-- Studio Form Section -->
+        <div class="container mb-5" id="studio">
+            <form method="post" enctype="multipart/form-data" id="uploadForm">
+                {{ form.hidden_tag() }}
+
+                <!-- Action Bar for Demo Images -->
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <span class="small text-muted font-monospace"><i class="fas fa-image me-1"></i>Select files or try demo images:</span>
+                    <button type="button" class="btn btn-sm btn-demo rounded-pill px-4" id="useDemoBtn" onclick="useDemoImages('brad_pitt.jpg', 'la_muse.jpg')">
+                        <i class="fas fa-magic me-2" style="color: #818cf8;"></i>Use Demo Images (La Muse)
+                    </button>
+                </div>
+                
+                <div class="row g-4">
+                    <!-- Content Image -->
+                    <div class="col-md-6">
+                        <div class="card-custom h-100">
+                            <div class="card-custom-header text-center">Content Image</div>
+                            <div class="card-body text-center p-4">
+                                <div class="preview-image mb-3" id="contentPreview" onclick="document.getElementById('contentInput').click()">
+                                    {% if content_image %}
+                                        <img src="{{ url_for('send_image', filename=content_image) }}" alt="Content Image">
+                                    {% else %}
+                                        <span>Click to Select Content Image</span>
+                                    {% endif %}
+                                </div>
+                                {{ form.content(class="form-control", id="contentInput", onchange="previewFile(this, 'contentPreview')") }}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Style Image -->
+                    <div class="col-md-6">
+                        <div class="card-custom h-100">
+                            <div class="card-custom-header text-center">Style Image</div>
+                            <div class="card-body text-center p-4">
+                                <div class="preview-image mb-3" id="stylePreview" onclick="document.getElementById('styleInput').click()">
+                                    {% if style_image %}
+                                        <img src="{{ url_for('send_image', filename=style_image) }}" alt="Style Image">
+                                    {% else %}
+                                        <span>Click to Select Style Image</span>
+                                    {% endif %}
+                                </div>
+                                {{ form.style(class="form-control", id="styleInput", onchange="previewFile(this, 'stylePreview')") }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Controls Section -->
+                <div class="row justify-content-center mt-4">
+                    <div class="col-md-8">
+                        <div class="control-section text-center">
+                            <label for="alphaRange" class="form-label fw-bold mb-3 d-block" style="font-family: 'Orbitron', sans-serif; letter-spacing: 1px; color: #cbd5e1;">
+                                STYLE STRENGTH: <span id="alphaValue" style="color: var(--primary-accent);">1.0</span>
+                            </label>
+                            {{ form.alpha(class="form-range", id="alphaRange", type="range", min="0", max="1", step="0.05") }}
+                        </div>
+
+                        <div class="text-center mt-4">
+                            {{ form.submit(class="btn btn-primary shadow") }}
+                        </div>
+                    </div>
+                </div>
+            </form>
+
+            <!-- Result Section -->
+            {% if result_image %}
+            <div class="row justify-content-center mt-5" id="resultSection">
+                <div class="col-md-8">
+                    <div class="card-custom">
+                        <div class="card-custom-header text-center py-3" style="background: rgba(16, 185, 129, 0.15); color: #34d399;">Stylized Result</div>
+                        <div class="card-body p-0">
+                            <div class="text-center bg-dark">
+                                <img src="{{ url_for('send_image', filename=result_image) }}" class="img-fluid w-100" alt="Stylized Result" style="max-height: 500px; object-fit: contain;">
+                            </div>
+                        </div>
+                        <div class="card-footer text-center p-3" style="background: transparent; border-top: 1px solid rgba(255,255,255,0.06);">
+                            <a href="{{ url_for('send_image', filename=result_image) }}" download class="btn btn-sm btn-outline-light rounded-pill px-4">Download Result</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if error %}
+                <div class="alert alert-danger mt-4 text-center" role="alert" style="background: rgba(220, 38, 38, 0.2); border-color: #dc2626; color: #fecaca;">
+                    <strong>Error:</strong> {{ error }}
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- Examples Section -->
+        <section class="container examples-section" id="examples">
+            <div class="card-custom">
+                <div class="card-custom-header text-center py-3">Examples</div>
+                <div class="card-body p-4">
+                    <p class="text-center text-muted mb-4">Click any example to load it directly into the studio above.</p>
+                    <div class="row g-4">
+                        <!-- Example 1: La Muse -->
+                        <div class="col-12">
+                            <div class="example-flow" onclick="useDemoImages('brad_pitt.jpg', 'la_muse.jpg')">
+                                <div class="example-inputs">
+                                    <div>
+                                        <div class="example-role text-center">Content Image</div>
+                                        <img src="{{ url_for('send_example', filename='brad_pitt.jpg') }}" alt="Brad Pitt Content" class="example-image">
+                                    </div>
+                                    <div>
+                                        <div class="example-role text-center">Style Image (La Muse)</div>
+                                        <img src="{{ url_for('send_example', filename='la_muse.jpg') }}" alt="La Muse Style" class="example-image">
+                                    </div>
+                                </div>
+                                <div class="example-arrow">-&gt;</div>
+                                <div class="example-output">
+                                    <div class="example-role text-center">Output</div>
+                                    <img src="{{ url_for('send_example', filename='stylized_brad_pitt_lamuse.jpg') }}" alt="Brad Pitt La Muse Result" class="example-image">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Example 2: Pencil Sketch -->
+                        <div class="col-12">
+                            <div class="example-flow" onclick="useDemoImages('brad_pitt.jpg', 'sketch.png')">
+                                <div class="example-inputs">
+                                    <div>
+                                        <div class="example-role text-center">Content Image</div>
+                                        <img src="{{ url_for('send_example', filename='brad_pitt.jpg') }}" alt="Brad Pitt Content" class="example-image">
+                                    </div>
+                                    <div>
+                                        <div class="example-role text-center">Style Image (Sketch)</div>
+                                        <img src="{{ url_for('send_example', filename='sketch.png') }}" alt="Sketch Style" class="example-image">
+                                    </div>
+                                </div>
+                                <div class="example-arrow">-&gt;</div>
+                                <div class="example-output">
+                                    <div class="example-role text-center">Output</div>
+                                    <img src="{{ url_for('send_example', filename='stylized_brad_pitt.jpg') }}" alt="Brad Pitt Sketch Result" class="example-image">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Example 3: Picasso -->
+                        <div class="col-12">
+                            <div class="example-flow" onclick="useDemoImages('brad_pitt.jpg', 'picasso_seated_nude_hr.jpg')">
+                                <div class="example-inputs">
+                                    <div>
+                                        <div class="example-role text-center">Content Image</div>
+                                        <img src="{{ url_for('send_example', filename='brad_pitt.jpg') }}" alt="Brad Pitt Content" class="example-image">
+                                    </div>
+                                    <div>
+                                        <div class="example-role text-center">Style Image (Picasso)</div>
+                                        <img src="{{ url_for('send_example', filename='picasso_seated_nude_hr.jpg') }}" alt="Picasso Style" class="example-image">
+                                    </div>
+                                </div>
+                                <div class="example-arrow">-&gt;</div>
+                                <div class="example-output">
+                                    <div class="example-role text-center">Output</div>
+                                    <img src="{{ url_for('send_example', filename='stylized_brad_pitt (1).jpg') }}" alt="Brad Pitt Picasso Result" class="example-image">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- FAQs Section -->
+        <section class="container faq-section" id="faq">
+            <div class="card-custom">
+                <div class="card-custom-header text-center py-3">Frequently Asked Questions</div>
+                <div class="card-body p-4">
+                    <div class="accordion" id="faqAccordion">
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faqOne">
+                                    1. Is it a pretrained model?
+                                </button>
+                            </h2>
+                            <div id="faqOne" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                                <div class="accordion-body text-muted">
+                                    The model is trained using an Encoder-Decoder architecture with Adaptive Instance Normalization.
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faqTwo">
+                                    2. Which painting styles can be used?
+                                </button>
+                            </h2>
+                            <div id="faqTwo" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                                <div class="accordion-body text-muted">
+                                    Any style image (such as Picasso, La Muse, impressionist, sketch, watercolor) can be used as a reference.
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faqThree">
+                                    3. Tech stack of the project?
+                                </button>
+                            </h2>
+                            <div id="faqThree" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                                <div class="accordion-body text-muted">
+                                    Python, PyTorch, Flask, Bootstrap 5.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer-section relative-z text-center">
+        <div class="container">
+            <p class="mb-2 d-inline-flex align-items-center" style="font-family: 'Orbitron', sans-serif; color: #f8fafc;">
+                <svg class="me-2" width="24" height="24" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect width="36" height="36" rx="8" fill="#1e293b"/>
+                    <path d="M18 7L28 12.5V23.5L18 29L8 23.5V12.5L18 7Z" stroke="#818cf8" stroke-width="2" stroke-linejoin="round"/>
+                    <circle cx="18" cy="18" r="3.5" fill="#6366f1"/>
+                    <circle cx="18" cy="10" r="2" fill="#818cf8"/>
+                    <circle cx="25" cy="14" r="2" fill="#818cf8"/>
+                    <circle cx="25" cy="22" r="2" fill="#818cf8"/>
+                    <circle cx="18" cy="26" r="2" fill="#818cf8"/>
+                    <circle cx="11" cy="22" r="2" fill="#818cf8"/>
+                    <circle cx="11" cy="14" r="2" fill="#818cf8"/>
+                </svg>
+                NeuralArt
+            </p>
+            <p class="small text-muted mb-0">&copy; 2026 NeuralArt Project. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <!-- Loading Overlay -->
+    <div class="loader-overlay" id="loader">
+        <div class="simple-spinner mb-3"></div>
+        <h4 class="text-white" style="font-family: 'Orbitron', sans-serif;">Processing Style Transfer...</h4>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function previewFile(input, previewId) {
+            const preview = document.getElementById(previewId);
+            const file = input.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.addEventListener("load", function () {
+                    preview.innerHTML = `<img src="${reader.result}" alt="Image Preview">`;
+                }, false);
+                reader.readAsDataURL(file);
+            }
+        }
+
+        // Demo Image Quick Selection (Defaults to La Muse)
+        function useDemoImages(contentFile = 'brad_pitt.jpg', styleFile = 'la_muse.jpg') {
+            const contentPathInput = document.getElementById('content_path');
+            const stylePathInput = document.getElementById('style_path');
+            const contentPreview = document.getElementById('contentPreview');
+            const stylePreview = document.getElementById('stylePreview');
+
+            if (contentPathInput) contentPathInput.value = contentFile;
+            if (stylePathInput) stylePathInput.value = styleFile;
+
+            if (contentPreview) {
+                contentPreview.innerHTML = `<img src="/uploads/${contentFile}" alt="Demo Content Image">`;
+            }
+            if (stylePreview) {
+                stylePreview.innerHTML = `<img src="/uploads/${styleFile}" alt="Demo Style Image">`;
+            }
+
+            // Scroll smoothly to studio section
+            const studioSec = document.getElementById('studio');
+            if (studioSec) {
+                studioSec.scrollIntoView({ behavior: 'smooth' });
+            }
+        }
+
+        // Alpha Range Slider Value Update
+        const alphaRange = document.getElementById('alphaRange');
+        const alphaValue = document.getElementById('alphaValue');
+        if (alphaRange && alphaValue) {
+            alphaRange.addEventListener('input', function() {
+                alphaValue.textContent = parseFloat(this.value).toFixed(2);
+            });
+        }
+
+        // Loader on Form Submit
+        const uploadForm = document.getElementById('uploadForm');
+        const loader = document.getElementById('loader');
+        if (uploadForm && loader) {
+            uploadForm.addEventListener('submit', function() {
+                loader.classList.add('active');
+            });
+        }
+
+        // Interactive Neural Network Particle Background (Exact Original Mouse Physics)
+        window.onload = function() {
+            if (document.getElementById('resultSection')) {
+                document.getElementById('resultSection').scrollIntoView({ behavior: "smooth" });
+            }
+
+            const canvas = document.getElementById('neuralCanvas');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            let width, height;
+            let particles = [];
+            let mouse = { x: null, y: null, radius: 150 };
+
+            function resize() {
+                width = canvas.width = window.innerWidth;
+                height = canvas.height = window.innerHeight;
+            }
+
+            class Particle {
+                constructor() {
+                    this.x = Math.random() * width;
+                    this.y = Math.random() * height;
+                    this.vx = (Math.random() - 0.5) * 0.5;
+                    this.vy = (Math.random() - 0.5) * 0.5;
+                    this.size = Math.random() * 3 + 1.5;
+                    this.hue = Math.floor(Math.random() * 10) * 36;
+                    this.density = (Math.random() * 30) + 1;
+                }
+                update() {
+                    this.x += this.vx;
+                    this.y += this.vy;
+
+                    // Mouse Interaction Force Physics
+                    if (mouse.x !== null && mouse.y !== null) {
+                        let dx = mouse.x - this.x;
+                        let dy = mouse.y - this.y;
+                        let distance = Math.sqrt(dx * dx + dy * dy);
+                        if (distance < mouse.radius) {
+                            const forceDirectionX = dx / distance;
+                            const forceDirectionY = dy / distance;
+                            const force = (mouse.radius - distance) / mouse.radius;
+                            const directionX = forceDirectionX * force * this.density;
+                            const directionY = forceDirectionY * force * this.density;
+                            this.x -= directionX;
+                            this.y -= directionY;
+                        }
+                    }
+
+                    if (this.x < 0 || this.x > width) this.vx *= -1;
+                    if (this.y < 0 || this.y > height) this.vy *= -1;
+                    this.hue = (this.hue + 0.2) % 360;
+                }
+                draw() {
+                    ctx.fillStyle = "hsla(" + this.hue + ", 65%, 55%, 0.35)";
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+
+            function initParticles() {
+                particles = [];
+                const numParticles = Math.floor(window.innerWidth / 15);
+                for (let i = 0; i < numParticles; i++) {
+                    particles.push(new Particle());
+                }
+            }
+
+            function animate() {
+                ctx.clearRect(0, 0, width, height);
+                particles.forEach((p, i) => {
+                    p.update();
+                    p.draw();
+                    for (let j = i + 1; j < particles.length; j++) {
+                        const p2 = particles[j];
+                        const d = Math.hypot(p.x - p2.x, p.y - p2.y);
+                        if (d < 100) {
+                            ctx.strokeStyle = "hsla(" + p.hue + ", 65%, 55%, " + (0.15 * (1 - d / 100)) + ")";
+                            ctx.lineWidth = 1;
+                            ctx.beginPath();
+                            ctx.moveTo(p.x, p.y);
+                            ctx.lineTo(p2.x, p2.y);
+                            ctx.stroke();
+                        }
+                    }
+                });
+                requestAnimationFrame(animate);
+            }
+
+            window.addEventListener('resize', () => { resize(); initParticles(); });
+            window.addEventListener('mousemove', (event) => {
+                mouse.x = event.clientX;
+                mouse.y = event.clientY;
+            });
+            window.addEventListener('mouseleave', () => {
+                mouse.x = null;
+                mouse.y = null;
+            });
+
+            resize();
+            initParticles();
+            animate();
+        };
+    </script>
+</body>
+</html>

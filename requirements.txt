@@ -1,11 +1,9 @@
-Flask>=3.0.0
-Flask_Bootstrap>=3.3.7
-flask_wtf>=1.2.0
-numpy>=1.24
+flask>=3.0.0
+flask-bootstrap>=3.3.7.1
+flask-wtf>=1.2.0
 Pillow>=10.0.0
 torch>=2.0.0
 torchvision>=0.15.0
 tqdm>=4.66.0
-Werkzeug>=3.0.0
-WTForms>=3.0.0
-gunicorn
+werkzeug>=3.0.0
+wtforms>=3.1.0

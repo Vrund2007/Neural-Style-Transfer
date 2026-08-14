@@ -15,15 +15,25 @@ app = Flask(__name__,
             template_folder=os.path.join(BASE_DIR, 'templates'),
             static_folder=os.path.join(BASE_DIR, 'static'))
 app.config['SECRET_KEY'] = 'supersecretkey'
-app.config['UPLOAD_FOLDER'] = os.path.join(BASE_DIR, 'static', 'uploads')
+
+# Use /tmp on Vercel / serverless where /var/task is read-only
+if os.environ.get('VERCEL') or os.environ.get('AWS_LAMBDA_FUNCTION_NAME') or not os.access(BASE_DIR, os.W_OK):
+    app.config['UPLOAD_FOLDER'] = os.path.join('/tmp', 'uploads')
+else:
+    app.config['UPLOAD_FOLDER'] = os.path.join(BASE_DIR, 'static', 'uploads')
+
+try:
+    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+except Exception:
+    app.config['UPLOAD_FOLDER'] = os.path.join('/tmp', 'uploads')
+    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
 app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg'}
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
 Bootstrap(app)
 
-os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-
-# Copy demo files on startup
+# Copy demo files on startup if writable
 demo_files = ['brad_pitt.jpg', 'sketch.png', 'picasso_seated_nude_hr.jpg', 'la_muse.jpg']
 examples_dir = os.path.join(BASE_DIR, 'examples')
 for fname in demo_files:
@@ -34,6 +44,28 @@ for fname in demo_files:
             shutil.copy(src, dst)
         except Exception:
             pass
+
+# Helper to locate images across uploads, examples, style_data
+def resolve_image_path(filename):
+    if not filename:
+        return None
+    # 1. Check upload folder (/tmp/uploads or static/uploads)
+    p = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    if os.path.exists(p):
+        return p
+    # 2. Check examples folder (for demo presets)
+    p = os.path.join(BASE_DIR, 'examples', filename)
+    if os.path.exists(p):
+        return p
+    # 3. Check style_data folder
+    p = os.path.join(BASE_DIR, 'style_data', filename)
+    if os.path.exists(p):
+        return p
+    # 4. Check static/uploads folder
+    p = os.path.join(BASE_DIR, 'static', 'uploads', filename)
+    if os.path.exists(p):
+        return p
+    return os.path.join(app.config['UPLOAD_FOLDER'], filename)
 
 # ── ONNX Runtime sessions (loaded once at startup) ────────────────────────────
 _encoder_sess = ort.InferenceSession(
@@ -131,15 +163,16 @@ def index():
             style_filename = form.style_path.data
 
         if content_filename and style_filename:
-            content_path = os.path.join(app.config['UPLOAD_FOLDER'], content_filename)
-            style_path   = os.path.join(app.config['UPLOAD_FOLDER'], style_filename)
+            content_path = resolve_image_path(content_filename)
+            style_path   = resolve_image_path(style_filename)
             try:
                 content_image = Image.open(content_path).convert('RGB')
                 style_image   = Image.open(style_path).convert('RGB')
                 alpha         = float(form.alpha.data)
                 stylized      = style_transfer(content_image, style_image, alpha)
                 result_filename = 'stylized_' + content_filename
-                stylized.save(os.path.join(app.config['UPLOAD_FOLDER'], result_filename))
+                result_dest   = os.path.join(app.config['UPLOAD_FOLDER'], result_filename)
+                stylized.save(result_dest)
                 result_image = result_filename
             except Exception as e:
                 error = str(e)
@@ -157,7 +190,10 @@ def index():
 
 @app.route('/uploads/<filename>')
 def send_image(filename):
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+    path = resolve_image_path(filename)
+    if path and os.path.exists(path):
+        return send_from_directory(os.path.dirname(path), os.path.basename(path))
+    return "Image not found", 404
 
 
 @app.route('/examples/<path:filename>')

@@ -301,22 +301,77 @@
             margin-top: 4rem;
         }
         .faq-section .accordion-item {
-            background: rgba(23, 32, 51, 0.75);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            margin-bottom: 0.75rem;
-            border-radius: 10px;
+            background: rgba(23, 32, 51, 0.85);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            margin-bottom: 0.9rem;
+            border-radius: 12px;
             overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
         }
         .faq-section .accordion-button {
-            background: rgba(15, 23, 42, 0.75);
-            color: #e2e8f0;
+            background: rgba(15, 23, 42, 0.95);
+            color: #ffffff !important;
             font-weight: 600;
-            font-size: 0.95rem;
+            font-size: 1.02rem;
+            padding: 1.1rem 1.4rem;
         }
         .faq-section .accordion-button:not(.collapsed) {
-            background: rgba(79, 70, 229, 0.15);
-            color: #ffffff;
+            background: rgba(79, 70, 229, 0.25);
+            color: #818cf8 !important;
+            border-bottom: 1px solid rgba(99, 102, 241, 0.3);
             box-shadow: none;
+        }
+        .faq-section .accordion-button::after {
+            filter: brightness(0) invert(1);
+        }
+        .faq-section .accordion-body {
+            background: #0f172a !important;
+            color: #f1f5f9 !important;
+            font-size: 0.98rem;
+            line-height: 1.75;
+            padding: 1.4rem 1.5rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .faq-section .accordion-body p,
+        .faq-section .accordion-body ul,
+        .faq-section .accordion-body li,
+        .faq-section .accordion-body span,
+        .faq-section .accordion-body div {
+            color: #f1f5f9 !important;
+        }
+        .faq-section .accordion-body strong {
+            color: #818cf8 !important;
+        }
+        .faq-section .accordion-body code {
+            color: #a5b4fc;
+            background: rgba(99, 102, 241, 0.2);
+            padding: 0.2rem 0.45rem;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 0.92em;
+        }
+
+        /* Demo Video Styling */
+        .demo-section {
+            margin-top: 4rem;
+        }
+        .video-wrapper {
+            position: relative;
+            padding-bottom: 56.25%; /* 16:9 Aspect Ratio */
+            height: 0;
+            overflow: hidden;
+            border-radius: 14px;
+            border: 1px solid rgba(129, 140, 248, 0.3);
+            background: #000;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7), 0 0 25px rgba(99, 102, 241, 0.25);
+        }
+        .video-wrapper iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: 0;
         }
 
         /* Footer */
@@ -399,6 +454,7 @@
                 <ul class="navbar-nav ms-auto">
                     <li class="nav-item"><a class="nav-link" href="#studio">Studio</a></li>
                     <li class="nav-item"><a class="nav-link" href="#examples">Examples</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#demo">Demo</a></li>
                     <li class="nav-item"><a class="nav-link" href="#faq">FAQ</a></li>
                 </ul>
             </div>
@@ -551,7 +607,7 @@
                                 <div class="example-arrow">-&gt;</div>
                                 <div class="example-output">
                                     <div class="example-role text-center">Output</div>
-                                    <img src="{{ url_for('send_example', filename='stylized_brad_pitt.jpg') }}" alt="Brad Pitt Sketch Result" class="example-image">
+                                    <img src="{{ url_for('send_example', filename='stylized_brad_pitt_sketch.jpg') }}" alt="Brad Pitt Sketch Result" class="example-image">
                                 </div>
                             </div>
                         </div>
@@ -572,7 +628,7 @@
                                 <div class="example-arrow">-&gt;</div>
                                 <div class="example-output">
                                     <div class="example-role text-center">Output</div>
-                                    <img src="{{ url_for('send_example', filename='stylized_brad_pitt (1).jpg') }}" alt="Brad Pitt Picasso Result" class="example-image">
+                                    <img src="{{ url_for('send_example', filename='stylized_brad_pitt_picasso.jpg') }}" alt="Brad Pitt Picasso Result" class="example-image">
                                 </div>
                             </div>
                         </div>
@@ -581,50 +637,181 @@
             </div>
         </section>
 
-        <!-- FAQs Section -->
+        <!-- Video Demo Section -->
+        <section class="container demo-section" id="demo">
+            <div class="card-custom">
+                <div class="card-custom-header text-center py-3">
+                    <i class="fab fa-youtube me-2" style="color: #ef4444;"></i>Project Video Demo &amp; Architecture Walkthrough
+                </div>
+                <div class="card-body p-4 p-md-5 text-center">
+                    <p class="mb-4" style="color: #cbd5e1; font-size: 1.05rem; max-width: 800px; margin: 0 auto 1.5rem;">
+                        Watch the complete walkthrough covering the AdaIN neural style transfer pipeline, real-time feature normalization, and interactive browser deployment.
+                    </p>
+                    
+                    <div class="video-wrapper mx-auto" style="max-width: 880px;">
+                        <iframe src="https://www.youtube.com/embed/2gmqb7oJNWA" 
+                                title="Neural Style Transfer Project Demo" 
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+                                allowfullscreen>
+                        </iframe>
+                    </div>
+
+                    <div class="d-flex flex-wrap justify-content-center gap-2 mt-4">
+                        <span class="badge rounded-pill px-3 py-2" style="background: rgba(99, 102, 241, 0.18); color: #a5b4fc; border: 1px solid rgba(99, 102, 241, 0.35); font-size: 0.88rem;">
+                            <i class="fas fa-bolt me-1"></i>Real-Time Inference
+                        </span>
+                        <span class="badge rounded-pill px-3 py-2" style="background: rgba(16, 185, 129, 0.18); color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.35); font-size: 0.88rem;">
+                            <i class="fas fa-brain me-1"></i>AdaIN Feature Alignment
+                        </span>
+                        <span class="badge rounded-pill px-3 py-2" style="background: rgba(245, 158, 11, 0.18); color: #fcd34d; border: 1px solid rgba(245, 158, 11, 0.35); font-size: 0.88rem;">
+                            <i class="fas fa-sliders-h me-1"></i>Continuous Alpha Interpolation
+                        </span>
+                        <span class="badge rounded-pill px-3 py-2" style="background: rgba(236, 72, 153, 0.18); color: #f472b6; border: 1px solid rgba(236, 72, 153, 0.35); font-size: 0.88rem;">
+                            <i class="fas fa-microchip me-1"></i>ONNX Serverless Engine
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Technical FAQs Section -->
         <section class="container faq-section" id="faq">
             <div class="card-custom">
-                <div class="card-custom-header text-center py-3">Frequently Asked Questions</div>
-                <div class="card-body p-4">
+                <div class="card-custom-header text-center py-3">Technical Frequently Asked Questions</div>
+                <div class="card-body p-4 p-md-5">
+                    <p class="text-center mb-4" style="color: #cbd5e1; font-size: 1rem;">
+                        Deep learning concepts, architecture decisions, and software engineering details behind the AdaIN Neural Style Transfer system.
+                    </p>
                     <div class="accordion" id="faqAccordion">
+                        
+                        <!-- Question 1 -->
                         <div class="accordion-item">
                             <h2 class="accordion-header">
-                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faqOne">
-                                    1. Is it a pretrained model?
+                                <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#faqOne" aria-expanded="true">
+                                    1. How does Adaptive Instance Normalization (AdaIN) transfer style in a single forward pass?
                                 </button>
                             </h2>
-                            <div id="faqOne" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
-                                <div class="accordion-body text-muted">
-                                    The model is trained using an Encoder-Decoder architecture with Adaptive Instance Normalization.
+                            <div id="faqOne" class="accordion-collapse collapse show" data-bs-parent="#faqAccordion">
+                                <div class="accordion-body">
+                                    <p>Traditional Neural Style Transfer (Gatys et al.) relies on iterative optimization via gradient descent, which requires minutes of backpropagation per image. <strong>AdaIN (Huang &amp; Belongie)</strong> replaces this with direct statistical alignment in latent feature space.</p>
+                                    <p class="mb-0">AdaIN computes the channel-wise spatial mean and standard deviation of content activations and normalizes them (removing content textures). It then scales and shifts these normalized features using the mean and variance computed from the style image feature map. The inverted decoder then reconstructs the final stylized image in a single deterministic forward pass with sub-second latency.</p>
                                 </div>
                             </div>
                         </div>
 
+                        <!-- Question 2 -->
                         <div class="accordion-item">
                             <h2 class="accordion-header">
                                 <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faqTwo">
-                                    2. Which painting styles can be used?
+                                    2. Why is the VGG-19 encoder truncated at <code>relu4_1</code> and frozen?
                                 </button>
                             </h2>
                             <div id="faqTwo" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
-                                <div class="accordion-body text-muted">
-                                    Any style image (such as Picasso, La Muse, impressionist, sketch, watercolor) can be used as a reference.
+                                <div class="accordion-body">
+                                    <p>VGG-19 pre-trained on ImageNet forms a hierarchical feature extractor. Shallow layers (<code>relu1_1</code>, <code>relu2_1</code>) encode local textures and fine brushstrokes, while deep layers (<code>relu4_1</code>) preserve high-level semantic layout and spatial geometry without encoding surface textures.</p>
+                                    <p class="mb-0">All encoder weights are <strong>frozen ($\nabla_\theta = 0$)</strong> during training. This ensures the encoder remains a static visual feature extractor, allowing the downstream decoder to learn an accurate inverse mapping from latent space back to RGB image space.</p>
                                 </div>
                             </div>
                         </div>
 
+                        <!-- Question 3 -->
                         <div class="accordion-item">
                             <h2 class="accordion-header">
                                 <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faqThree">
-                                    3. Tech stack of the project?
+                                    3. How does the Inverted Decoder eliminate checkerboard and border artifacts?
                                 </button>
                             </h2>
                             <div id="faqThree" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
-                                <div class="accordion-body text-muted">
-                                    Python, PyTorch, Flask, Bootstrap 5.
+                                <div class="accordion-body">
+                                    <p>Standard transposed convolutions (Deconv layers) cause uneven kernel overlap, resulting in high-frequency checkerboard artifacts across the image. To eliminate this, our decoder employs <strong>Nearest-Neighbor Upsampling ($2\times$)</strong> paired with standard $3\times 3$ convolutions ($512 \to 256 \to 128 \to 64 \to 3$).</p>
+                                    <p class="mb-0">Additionally, standard zero-padding is replaced with <strong>Reflection Padding (<code>ReflectionPad2d</code>)</strong> on all convolutional blocks to prevent boundary darkening and edge distortion.</p>
                                 </div>
                             </div>
                         </div>
+
+                        <!-- Question 4 -->
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faqFour">
+                                    4. How does continuous Style Strength (&alpha;) interpolation work in latent space?
+                                </button>
+                            </h2>
+                            <div id="faqFour" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                                <div class="accordion-body">
+                                    <p>The style intensity slider modulates the target latent features $t$ using linear interpolation between the raw content feature representation $f(c)$ and the stylized AdaIN features $\text{AdaIN}(f(c), f(s))$:</p>
+                                    <p><code>Target Latent Features = &alpha; &middot; AdaIN(f(c), f(s)) + (1 - &alpha;) &middot; f(c)</code></p>
+                                    <p class="mb-0">Setting <code>&alpha; = 0.0</code> reconstructs the original content photo, <code>&alpha; = 1.0</code> produces full artistic texture transfer, and fractional values provide continuous, smooth transitions without re-running the feature encoder.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Question 5 -->
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faqFive">
+                                    5. What loss functions were used during model training?
+                                </button>
+                            </h2>
+                            <div id="faqFive" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                                <div class="accordion-body">
+                                    <p>The decoder was trained end-to-end on MS-COCO (content) and WikiArt (style) datasets using a composite objective function:</p>
+                                    <ul>
+                                        <li><strong>Content Loss ($\mathcal{L}_c$)</strong>: Euclidean distance ($\mathcal{L}_2$) between the stylized output's features and the target AdaIN features at layer <code>relu4_1</code>.</li>
+                                        <li><strong>Multi-Scale Style Loss ($\mathcal{L}_s$)</strong>: The sum of differences between channel-wise means and standard deviations across intermediate layers <code>relu1_1</code>, <code>relu2_1</code>, <code>relu3_1</code>, and <code>relu4_1</code>.</li>
+                                        <li><strong>Total Loss</strong>: <code>&Lscr;<sub>total</sub> = &Lscr;<sub>c</sub> + &gamma; &Lscr;<sub>s</sub></code> (where style weight $\gamma = 5.0$).</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Question 6 -->
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faqSix">
+                                    6. How was the model optimized for sub-second serverless deployment?
+                                </button>
+                            </h2>
+                            <div id="faqSix" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                                <div class="accordion-body">
+                                    <p>To deploy within Vercel's serverless environment, the PyTorch models were converted into optimized <strong>ONNX (Open Neural Network Exchange)</strong> runtime graphs.</p>
+                                    <p class="mb-0">By using <strong>ONNX Runtime</strong> and vectorized NumPy AdaIN math, the deployment package was reduced from <strong>4.7 GB (CUDA PyTorch) down to ~80 MB</strong>, eliminating cold-start latency and enabling instant sub-second CPU inference.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Question 7 -->
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faqSeven">
+                                    7. Which painting and art styles can be used?
+                                </button>
+                            </h2>
+                            <div id="faqSeven" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                                <div class="accordion-body">
+                                    <p class="mb-0">Because AdaIN extracts and transfers first- and second-order feature statistics dynamically, <strong>any arbitrary style image</strong> can be used without retraining—including Impressionism (Monet), Cubism (Picasso), Post-Impressionism (Van Gogh), Pencil Sketch, Watercolor, Stained Glass, and Abstract Expressionism.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Question 8 -->
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faqEight">
+                                    8. What is the full technology stack of this project?
+                                </button>
+                            </h2>
+                            <div id="faqEight" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                                <div class="accordion-body">
+                                    <ul>
+                                        <li><strong>Deep Learning Engine:</strong> PyTorch (Model Training), ONNX Runtime (Production Inference), NumPy (Vectorized AdaIN).</li>
+                                        <li><strong>Backend &amp; API:</strong> Python 3.12, Flask, Flask-WTF, Werkzeug WSGI server.</li>
+                                        <li><strong>Frontend UI:</strong> HTML5, CSS3 Glassmorphism, Bootstrap 5, FontAwesome 6, Google Fonts (Orbitron &amp; Inter).</li>
+                                        <li><strong>Interactive Physics:</strong> Vanilla JavaScript HTML5 Canvas particle repulsion network.</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
                     </div>
                 </div>
             </div>

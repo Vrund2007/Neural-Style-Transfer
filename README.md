@@ -6,13 +6,13 @@ A high-performance implementation of **Real-Time Arbitrary Neural Style Transfer
 
 ## 📌 Executive Summary
 
-Traditional Neural Style Transfer (Gatys et al., 2015) relies on iterative optimization via gradient descent for every content-style image pair, taking minutes to generate a single image. Later Feed-Forward Networks (Johnson et al., 2016) achieved real-time speeds but were restricted to a single pre-trained style per model.
+Traditional Neural Style Transfer relies on iterative optimization via gradient descent for every content-style image pair, taking minutes to generate a single image. Later Feed-Forward Networks achieved real-time speeds but were restricted to a single pre-trained style per model.
 
-This repository implements **Adaptive Instance Normalization (Huang & Belongie, 2017)**, which enables **real-time, arbitrary style transfer** on unseen content and style images in a single forward pass. By normalizing content feature maps to match the channel-wise mean and variance of style feature maps, the model transfers artistic texture dynamically without requiring retrain loops or per-style parameters.
+This repository implements **Adaptive Instance Normalization (AdaIN)**, which enables **real-time, arbitrary style transfer** on unseen content and style images in a single forward pass. By dynamically adjusting the feature statistics (mean and variance) of the content image to match those of the style image in latent space, the model transfers artistic style without requiring per-style training or iterative optimization loops.
 
 ---
 
-## 🧬 Architectural & Mathematical Foundation
+## 🏗️ System Architecture & Computer Science Foundations
 
 ```
                                 +-------------------+
@@ -22,10 +22,10 @@ This repository implements **Adaptive Instance Normalization (Huang & Belongie, 
                                           v
                                  [ VGG-19 Encoder ]
                                           |
-                                          v  f(c)
+                                          v  Content Features
 +---------------+              +----------+----------+
-|  Style Image  | ---> [ VGG ] -> f(s) -> [ AdaIN Layer ] ---> t
-+---------------+              +----------+----------+
+|  Style Image  | ---> [ VGG ] -> Style    -> [ AdaIN Layer ] ---> Target Latent Features
++---------------+              Features       +----------+----------+
                                           |
                                           v
                                     [ Decoder ]
@@ -34,70 +34,31 @@ This repository implements **Adaptive Instance Normalization (Huang & Belongie, 
                                   [ Stylized Output ]
 ```
 
-### 1. Feature Extractor (VGG-19 Encoder)
-- **Base Architecture**: Truncated VGG-19 network pre-trained on ImageNet up to the `relu4_1` activation layer.
-- **Fixed Weights**: All encoder parameters are frozen ($\nabla_{\theta_E} = 0$).
-- **Intermediate Multi-Scale Feature Maps**:
-  - `enc_1`: `relu1_1` (64 channels)
-  - `enc_2`: `relu2_1` (128 channels)
-  - `enc_3`: `relu3_1` (256 channels)
-  - `enc_4`: `relu4_1` (512 channels)
+### 1. VGG-19 Feature Extractor (Encoder)
+- **Deep Convolutional Backbone**: Utilizes a truncated VGG-19 network pre-trained on ImageNet up to the `relu4_1` feature map.
+- **Frozen Weights / Zero-Gradient Pass**: The encoder network parameters are kept completely frozen during training to act purely as a multi-scale feature extractor.
+- **Hierarchical Feature Maps**: Extracts spatial structures and texture representations across progressive receptive fields (`relu1_1`, `relu2_1`, `relu3_1`, `relu4_1`).
+
+### 2. Adaptive Instance Normalization (AdaIN Module)
+- **Latent Feature Alignment**: Normalizes the feature maps of the content image across spatial dimensions to wipe away its original style/texture, then shifts and scales the normalized features using the channel-wise feature statistics of the style image.
+- **Dynamic Feature Scaling**: Operates entirely in non-parametric latent space without trainable weights inside the normalization layer itself.
+- **Linear Feature Interpolation**: Provides continuous control over style intensity. A linear combination between raw content features and stylized features allows seamless slider adjustments from content-only to full style transfer.
+
+### 3. Inverted Decoder Network
+- **Symmetric Up-Sampling Pipeline**: Reconstructs RGB image space from 512-channel latent representations using nearest-neighbor upsampling layers ($512 \to 256 \to 128 \to 64 \to 3$).
+- **Boundary Artifact Prevention**: Replaces standard zero-padding with `ReflectionPad2d` to mitigate edge border artifacts during spatial convolutions.
+- **Unnormalized Feature Preservation**: Omits internal normalization layers (BatchNorm/InstanceNorm) inside the decoder to prevent distorting the target feature distribution established by AdaIN.
 
 ---
 
-### 2. Adaptive Instance Normalization (AdaIN)
-The core mechanism receives content feature maps $f(c) \in \mathbb{R}^{B \times C \times H_c \times W_c}$ and style feature maps $f(s) \in \mathbb{R}^{B \times C \times H_s \times W_s}$.
+## ⚡ Training Pipeline & Performance Characteristics
 
-AdaIN normalizes $f(c)$ across spatial dimensions $(H, W)$ per channel, removing original content statistics, and scales/shifts the result using style feature statistics:
+### Composite Objective Optimization
+The decoder network is trained end-to-end to reconstruct images whose latent features match the target AdaIN feature maps (Content Match) and whose multi-scale intermediate feature statistics match the style image (Style Match).
 
-$$\text{AdaIN}(x, s) = \sigma(s) \left( \frac{x - \mu(x)}{\sigma(x)} \right) + \mu(s)$$
-
-Where the spatial channel-wise mean $\mu(x)$ and standard deviation $\sigma(x)$ are computed as:
-
-$$\mu_c(x) = \frac{1}{HW} \sum_{h=1}^H \sum_{w=1}^W x_{c,h,w}$$
-
-$$\sigma_c(x) = \sqrt{\frac{1}{HW} \sum_{h=1}^H \sum_{w=1}^W (x_{c,h,w} - \mu_c(x))^2 + \epsilon}$$
-
-#### Continuous Style Strength Control ($\alpha$)
-The trade-off between content structure and style intensity is controlled continuously using linear interpolation parameter $\alpha \in [0.0, 1.0]$:
-
-$$t = \alpha \cdot \text{AdaIN}(f(c), f(s)) + (1 - \alpha) \cdot f(c)$$
-
-- $\alpha = 0.0$: Preserves original content features.
-- $\alpha = 1.0$: Fully transfers target style statistics.
-
----
-
-### 3. Symmetric Inverted Decoder Network
-The decoder $g$ takes normalized target feature representation $t \in \mathbb{R}^{B \times 512 \times H \times W}$ and reconstructs it back into RGB image space $g(t) \in \mathbb{R}^{B \times 3 \times H_{out} \times W_{out}}$.
-
-- **Reflection Padding**: Replaces standard zero-padding (`ReflectionPad2d`) to eliminate boundary edge artifacts.
-- **Upsampling**: Uses Nearest Neighbor upsampling (`scale_factor=2`) to increase resolution progressively ($512 \to 256 \to 128 \to 64 \to 3$).
-- **No Normalization Layers**: InstanceNorm / BatchNorm are omitted in the decoder to avoid distorting normalized feature statistics.
-
----
-
-## 🎯 Loss Functions & Training Strategy
-
-The decoder $g$ is trained using a composite loss function penalizing content and style discrepancies:
-
-$$\mathcal{L}_{total} = \mathcal{L}_c + \gamma \mathcal{L}_s$$
-
-### 1. Content Loss ($\mathcal{L}_c$)
-Ensures reconstructed image features $f(g(t))$ match target AdaIN feature map $t$ in deep latent space (`relu4_1`):
-
-$$\mathcal{L}_c = \| f(g(t)) - t \|_2^2$$
-
-### 2. Multi-Layer Style Loss ($\mathcal{L}_s$)
-Measures feature statistics matching across multiple intermediate encoder layers $i \in \{\text{relu1\_1}, \text{relu2\_1}, \text{relu3\_1}, \text{relu4\_1}\}$:
-
-$$\mathcal{L}_s = \sum_{i=1}^{L} \left( \|\mu(\phi_i(g(t))) - \mu(\phi_i(s))\|_2^2 + \|\sigma(\phi_i(g(t))) - \sigma(\phi_i(s))\|_2^2 \right)$$
-
-### Training Hyperparameters
-- **Optimizer**: Adam ($\text{lr} = 10^{-4}$, $\text{lr\_decay} = 5 \times 10^{-5}$)
-- **Loss Weights**: Content Weight = $1.0$, Style Weight ($\gamma$) = $5.0$
-- **Input Resolution**: Random crop $256 \times 256$ pixels during training
-- **Batch Size**: 4 content-style pairs per iteration
+- **Content Feature Matching**: Evaluates structural alignment at deep feature representations (`relu4_1`).
+- **Multi-Layer Style Matching**: Evaluates texture alignment across low, mid, and high-level feature activations (`relu1_1` through `relu4_1`).
+- **Computational Efficiency**: Inference is executed in a single deterministic forward pass ($\mathcal{O}(1)$ time complexity with respect to style diversity), enabling sub-second style generation on CPU and GPU platforms.
 
 ---
 
@@ -114,13 +75,13 @@ $$\mathcal{L}_s = \sum_{i=1}^{L} \left( \|\mu(\phi_i(g(t))) - \mu(\phi_i(s))\|_2
 │   │       └── decoder_final.pth   # Trained PyTorch Decoder Weights
 │   ├── utils/
 │   │   ├── models.py               # VGGEncoder & Decoder Module Definitions
-│   │   └── utils.py                # AdaIN Math Implementation & Dataset Loaders
+│   │   └── utils.py                # AdaIN Implementation & Dataset Loaders
 │   ├── static/
 │   │   └── uploads/                # Upload Directory for Runtime Processing
 │   ├── templates/
-│   │   └── index.html              # Modern Web Application User Interface
-│   ├── style_data/                 # Sample Style References (la_muse.jpg, etc.)
-│   └── examples/                   # Pre-compiled Demo Output Artifacts
+│   │   └── index.html              # Web Application User Interface
+│   ├── style_data/                 # Sample Style References
+│   └── examples/                   # Output Demonstration Artifacts
 ├── requirements.txt                # Python Dependencies
 └── README.md                       # Documentation
 ```
@@ -130,23 +91,24 @@ $$\mathcal{L}_s = \sum_{i=1}^{L} \left( \|\mu(\phi_i(g(t))) - \mu(\phi_i(s))\|_2
 ## 🛠️ Installation & Usage Guide
 
 ### 1. Prerequisites
-- **Python**: 3.10+ (Tested up to Python 3.14)
-- **PyTorch**: 2.0+ (CPU or CUDA GPU acceleration)
+- **Python**: 3.10+ (Tested on Python 3.14)
+- **PyTorch**: 2.0+ (Supports CPU & CUDA GPU Acceleration)
 
 ### 2. Environment Setup
 Clone the repository and install required packages:
 
 ```bash
-git clone https://github.com/shradha-khapra/ai-nst-project.git
+git clone https://github.com/Vrund2007/Neural-Style-Transfer.git
 cd "Neural Style Transfer"
 pip install -r requirements.txt
 ```
 
 ### 3. Run the Web Application
-Start the Flask development server:
+Start the Flask application server:
 
 ```bash
-python NST_Code/app.py
+cd NST_Code
+python app.py
 ```
 
 Open your browser and navigate to:
@@ -155,7 +117,7 @@ http://localhost:5000
 ```
 
 ### 4. Run Model Training (Optional)
-To train a custom decoder on your own content & style image datasets:
+To train the decoder on custom content and style datasets:
 
 ```bash
 python NST_Code/train.py \
@@ -170,10 +132,7 @@ python NST_Code/train.py \
 
 ## 🌐 Web Application Features
 
-- **Sticky Top Header**: Clean sticky navigation bar (`fixed-top` with dark glassmorphism).
-- **Interactive Mouse Particles**: Dynamic background neural network canvas with mouse force repulsion and multi-hue node physics.
-- **Demo Presets**: One-click **"Use Demo Images"** loader for immediate testing (`la_muse.jpg`, `sketch.png`, `picasso_seated_nude_hr.jpg`).
-- **Style Strength Range Control**: Real-time slider adjusting alpha strength $\alpha \in [0.0, 1.0]$.
-- **High-Resolution Result Output**: Single-click image download for generated artwork.
-
----
+- **Interactive User Interface**: Modern design with sticky navigation, particle effects, and dynamic status updates.
+- **Preset Loader**: Quick-load demo content and style images for immediate testing.
+- **Real-Time Style Strength Control**: Adjust the style interpolation strength smoothly between content and style output.
+- **High-Resolution Export**: One-click download for rendered stylized output images.

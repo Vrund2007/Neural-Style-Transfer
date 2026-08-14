@@ -3,3 +3,8 @@
 code.ipynb
 Demo_IO_Images
 NST_Code/content_data
+NST_Code/experiment/final_exp/sample_iter_*.png
+*.png
+!NST_Code/adain_algo.png
+!NST_Code/examples/*.png
+!NST_Code/static/**/*.png

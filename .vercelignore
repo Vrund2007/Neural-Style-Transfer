@@ -5,3 +5,6 @@ Demo_IO_Images
 NST_Code/content_data/
 NST_Code/experiment/
 NST_Code/vgg_normalised.pth
+NST_Code/export_onnx.py
+Procfile
+runtime.txt

@@ -1,19 +1,13 @@
 import os
-import torch
-from flask import Flask, render_template, request, redirect, url_for, send_from_directory
+import numpy as np
+import onnxruntime as ort
+from flask import Flask, render_template, request, send_from_directory
 from flask_wtf import FlaskForm
 from flask_bootstrap import Bootstrap
 from werkzeug.utils import secure_filename
 from wtforms import FileField, SubmitField, FloatField, HiddenField
-from wtforms.validators import InputRequired
 from PIL import Image
-from torchvision import transforms
-import io
-
-# Import your existing AdaIN code
-from utils.models import VGGEncoder, Decoder
-from utils.utils import adaptive_instance_normalization, calc_mean_std
-
+import shutil
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -22,14 +16,14 @@ app = Flask(__name__,
             static_folder=os.path.join(BASE_DIR, 'static'))
 app.config['SECRET_KEY'] = 'supersecretkey'
 app.config['UPLOAD_FOLDER'] = os.path.join(BASE_DIR, 'static', 'uploads')
-
 app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg'}
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
 Bootstrap(app)
 
-import shutil
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
+# Copy demo files on startup
 demo_files = ['brad_pitt.jpg', 'sketch.png', 'picasso_seated_nude_hr.jpg', 'la_muse.jpg']
 examples_dir = os.path.join(BASE_DIR, 'examples')
 for fname in demo_files:
@@ -41,6 +35,17 @@ for fname in demo_files:
         except Exception:
             pass
 
+# ── ONNX Runtime sessions (loaded once at startup) ────────────────────────────
+_encoder_sess = ort.InferenceSession(
+    os.path.join(BASE_DIR, 'encoder.onnx'),
+    providers=['CPUExecutionProvider']
+)
+_decoder_sess = ort.InferenceSession(
+    os.path.join(BASE_DIR, 'decoder.onnx'),
+    providers=['CPUExecutionProvider']
+)
+
+
 class UploadForm(FlaskForm):
     content = FileField('Content Image')
     style = FileField('Style Image')
@@ -49,55 +54,55 @@ class UploadForm(FlaskForm):
     alpha = FloatField('Alpha', default=1.0)
     submit = SubmitField('Transfer Style')
 
-vgg_path = os.path.join(BASE_DIR, 'vgg_normalised.pth')
-decoder_path = os.path.join(BASE_DIR, 'experiment', 'final_exp', 'decoder_final.pth')
-
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-encoder = VGGEncoder(vgg_path).to(device)
-decoder = Decoder().to(device)
-decoder.load_state_dict(torch.load(decoder_path, map_location=device))
-
-encoder.eval()
-decoder.eval()
 
 def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
 
-def style_transfer(content_image, style_image, encoder, decoder, alpha, device):
-    content_transform = transforms.Compose([
-        transforms.Resize(512),
-        transforms.ToTensor()
-    ])
 
-    style_transform = transforms.Compose([
-        transforms.Resize(512),
-        transforms.ToTensor()
-    ])
-    content_image = content_transform(content_image).unsqueeze(0).to(device)
-    style_image = style_transform(style_image).unsqueeze(0).to(device)
-
-    with torch.no_grad():
-        content_feats = encoder(content_image, is_test=True)
-        style_feats = encoder(style_image, is_test=True)
-
-        stylized_feats = adaptive_instance_normalization(content_feats, style_feats)
-
-        stylized_feats = alpha * stylized_feats + (1 - alpha) * content_feats
-
-        stylized_image = decoder(stylized_feats)
-
-    return stylized_image
+def _preprocess(pil_img, size=512):
+    """Resize shortest side to `size`, convert to float32 NCHW in [0,1]."""
+    w, h = pil_img.size
+    if w < h:
+        new_w, new_h = size, int(h * size / w)
+    else:
+        new_w, new_h = int(w * size / h), size
+    pil_img = pil_img.resize((new_w, new_h), Image.BILINEAR)
+    arr = np.array(pil_img, dtype=np.float32) / 255.0   # HWC [0,1]
+    arr = arr.transpose(2, 0, 1)[np.newaxis]             # NCHW
+    return arr
 
 
-def save_image(image, path):
-    image = image.cpu().clone()
-    image = image.squeeze(0)
-    image = image.clamp(0, 1)
-    image = transforms.ToPILImage()(image)
-    image.save(path)
+def _adain(content_feat, style_feat, eps=1e-5):
+    """Adaptive Instance Normalization in pure NumPy."""
+    c_mean = content_feat.mean(axis=(2, 3), keepdims=True)
+    c_std  = content_feat.std(axis=(2, 3), keepdims=True) + eps
+    s_mean = style_feat.mean(axis=(2, 3), keepdims=True)
+    s_std  = style_feat.std(axis=(2, 3), keepdims=True) + eps
+    return s_std * (content_feat - c_mean) / c_std + s_mean
 
+
+def style_transfer(content_pil, style_pil, alpha):
+    """Full pipeline using ONNX Runtime."""
+    content_arr = _preprocess(content_pil)
+    style_arr   = _preprocess(style_pil)
+
+    # Encode
+    content_feats = _encoder_sess.run(['features'], {'image': content_arr})[0]
+    style_feats   = _encoder_sess.run(['features'], {'image': style_arr})[0]
+
+    # AdaIN + alpha blend
+    stylized_feats = _adain(content_feats, style_feats)
+    blended        = alpha * stylized_feats + (1.0 - alpha) * content_feats
+
+    # Decode
+    output = _decoder_sess.run(['image'], {'features': blended.astype(np.float32)})[0]
+
+    # Post-process: NCHW → HWC uint8
+    output = output.squeeze(0).transpose(1, 2, 0)
+    output = np.clip(output, 0.0, 1.0)
+    output = (output * 255).astype(np.uint8)
+    return Image.fromarray(output)
 
 
 @app.route('/', methods=['GET', 'POST'])
@@ -127,19 +132,14 @@ def index():
 
         if content_filename and style_filename:
             content_path = os.path.join(app.config['UPLOAD_FOLDER'], content_filename)
-            style_path = os.path.join(app.config['UPLOAD_FOLDER'], style_filename)
-            
+            style_path   = os.path.join(app.config['UPLOAD_FOLDER'], style_filename)
             try:
                 content_image = Image.open(content_path).convert('RGB')
-                style_image = Image.open(style_path).convert('RGB')
-
-                alpha = float(form.alpha.data)
-                stylized_image = style_transfer(content_image, style_image, encoder, decoder, alpha, device)
-
+                style_image   = Image.open(style_path).convert('RGB')
+                alpha         = float(form.alpha.data)
+                stylized      = style_transfer(content_image, style_image, alpha)
                 result_filename = 'stylized_' + content_filename
-                result_path = os.path.join(app.config['UPLOAD_FOLDER'], result_filename)
-                save_image(stylized_image, result_path)
-                
+                stylized.save(os.path.join(app.config['UPLOAD_FOLDER'], result_filename))
                 result_image = result_filename
             except Exception as e:
                 error = str(e)
@@ -149,10 +149,9 @@ def index():
                 error = 'Please select or upload content image'
             elif not style_filename:
                 error = 'Please select or upload style image'
-        else:
-            error = None
 
-    return render_template('index.html', form=form, result_image=result_image, content_image=content_filename,
+    return render_template('index.html', form=form, result_image=result_image,
+                           content_image=content_filename,
                            style_image=style_filename, error=error)
 
 

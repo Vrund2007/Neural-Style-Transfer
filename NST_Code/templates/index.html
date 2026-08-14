@@ -453,8 +453,8 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto">
                     <li class="nav-item"><a class="nav-link" href="#studio">Studio</a></li>
-                    <li class="nav-item"><a class="nav-link" href="#examples">Examples</a></li>
                     <li class="nav-item"><a class="nav-link" href="#demo">Demo</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#examples">Examples</a></li>
                     <li class="nav-item"><a class="nav-link" href="#faq">FAQ</a></li>
                 </ul>
             </div>
@@ -563,6 +563,43 @@
             {% endif %}
         </div>
 
+        <!-- Video Demo Section -->
+        <section class="container demo-section" id="demo">
+            <div class="card-custom">
+                <div class="card-custom-header text-center py-3">
+                    <i class="fab fa-youtube me-2" style="color: #ef4444;"></i>Project Video Demo &amp; Architecture Walkthrough
+                </div>
+                <div class="card-body p-4 p-md-5 text-center">
+                    <p class="mb-4" style="color: #cbd5e1; font-size: 1.05rem; max-width: 800px; margin: 0 auto 1.5rem;">
+                        Watch the complete walkthrough covering the AdaIN neural style transfer pipeline, real-time feature normalization, and interactive browser deployment.
+                    </p>
+                    
+                    <div class="video-wrapper mx-auto" style="max-width: 880px;">
+                        <iframe src="https://www.youtube.com/embed/2gmqb7oJNWA" 
+                                title="Neural Style Transfer Project Demo" 
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+                                allowfullscreen>
+                        </iframe>
+                    </div>
+
+                    <div class="d-flex flex-wrap justify-content-center gap-2 mt-4">
+                        <span class="badge rounded-pill px-3 py-2" style="background: rgba(99, 102, 241, 0.18); color: #a5b4fc; border: 1px solid rgba(99, 102, 241, 0.35); font-size: 0.88rem;">
+                            <i class="fas fa-bolt me-1"></i>Real-Time Inference
+                        </span>
+                        <span class="badge rounded-pill px-3 py-2" style="background: rgba(16, 185, 129, 0.18); color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.35); font-size: 0.88rem;">
+                            <i class="fas fa-brain me-1"></i>AdaIN Feature Alignment
+                        </span>
+                        <span class="badge rounded-pill px-3 py-2" style="background: rgba(245, 158, 11, 0.18); color: #fcd34d; border: 1px solid rgba(245, 158, 11, 0.35); font-size: 0.88rem;">
+                            <i class="fas fa-sliders-h me-1"></i>Continuous Alpha Interpolation
+                        </span>
+                        <span class="badge rounded-pill px-3 py-2" style="background: rgba(236, 72, 153, 0.18); color: #f472b6; border: 1px solid rgba(236, 72, 153, 0.35); font-size: 0.88rem;">
+                            <i class="fas fa-microchip me-1"></i>ONNX Serverless Engine
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
         <!-- Examples Section -->
         <section class="container examples-section" id="examples">
             <div class="card-custom">
@@ -632,43 +669,6 @@
                                 </div>
                             </div>
                         </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Video Demo Section -->
-        <section class="container demo-section" id="demo">
-            <div class="card-custom">
-                <div class="card-custom-header text-center py-3">
-                    <i class="fab fa-youtube me-2" style="color: #ef4444;"></i>Project Video Demo &amp; Architecture Walkthrough
-                </div>
-                <div class="card-body p-4 p-md-5 text-center">
-                    <p class="mb-4" style="color: #cbd5e1; font-size: 1.05rem; max-width: 800px; margin: 0 auto 1.5rem;">
-                        Watch the complete walkthrough covering the AdaIN neural style transfer pipeline, real-time feature normalization, and interactive browser deployment.
-                    </p>
-                    
-                    <div class="video-wrapper mx-auto" style="max-width: 880px;">
-                        <iframe src="https://www.youtube.com/embed/2gmqb7oJNWA" 
-                                title="Neural Style Transfer Project Demo" 
-                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
-                                allowfullscreen>
-                        </iframe>
-                    </div>
-
-                    <div class="d-flex flex-wrap justify-content-center gap-2 mt-4">
-                        <span class="badge rounded-pill px-3 py-2" style="background: rgba(99, 102, 241, 0.18); color: #a5b4fc; border: 1px solid rgba(99, 102, 241, 0.35); font-size: 0.88rem;">
-                            <i class="fas fa-bolt me-1"></i>Real-Time Inference
-                        </span>
-                        <span class="badge rounded-pill px-3 py-2" style="background: rgba(16, 185, 129, 0.18); color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.35); font-size: 0.88rem;">
-                            <i class="fas fa-brain me-1"></i>AdaIN Feature Alignment
-                        </span>
-                        <span class="badge rounded-pill px-3 py-2" style="background: rgba(245, 158, 11, 0.18); color: #fcd34d; border: 1px solid rgba(245, 158, 11, 0.35); font-size: 0.88rem;">
-                            <i class="fas fa-sliders-h me-1"></i>Continuous Alpha Interpolation
-                        </span>
-                        <span class="badge rounded-pill px-3 py-2" style="background: rgba(236, 72, 153, 0.18); color: #f472b6; border: 1px solid rgba(236, 72, 153, 0.35); font-size: 0.88rem;">
-                            <i class="fas fa-microchip me-1"></i>ONNX Serverless Engine
-                        </span>
                     </div>
                 </div>
             </div>

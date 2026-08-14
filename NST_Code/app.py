@@ -56,6 +56,15 @@ class UploadForm(FlaskForm):
 vgg_path = os.path.join(BASE_DIR, 'vgg_normalised.pth')
 decoder_path = os.path.join(BASE_DIR, 'experiment', 'final_exp', 'decoder_final.pth')
 
+if not os.path.exists(vgg_path):
+    vgg_tmp_path = os.path.join('/tmp', 'vgg_normalised.pth')
+    if not os.path.exists(vgg_tmp_path):
+        import urllib.request
+        print("Downloading vgg_normalised.pth weights...")
+        vgg_url = "https://github.com/Vrund2007/Neural-Style-Transfer/raw/main/NST_Code/vgg_normalised.pth"
+        urllib.request.urlretrieve(vgg_url, vgg_tmp_path)
+    vgg_path = vgg_tmp_path
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 encoder = VGGEncoder(vgg_path).to(device)

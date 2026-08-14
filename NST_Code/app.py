@@ -1,13 +1,14 @@
 import os
+import uuid
+import time
 import numpy as np
 import onnxruntime as ort
-from flask import Flask, render_template, request, send_from_directory
+from flask import Flask, render_template, request, send_from_directory, make_response
 from flask_wtf import FlaskForm
 from flask_bootstrap import Bootstrap
 from werkzeug.utils import secure_filename
 from wtforms import FileField, SubmitField, FloatField, HiddenField
 from PIL import Image
-import shutil
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -16,7 +17,7 @@ app = Flask(__name__,
             static_folder=os.path.join(BASE_DIR, 'static'))
 app.config['SECRET_KEY'] = 'supersecretkey'
 
-# Use /tmp on Vercel / serverless where /var/task is read-only
+# Use /tmp on Vercel/serverless environments where /var/task is read-only
 if os.environ.get('VERCEL') or os.environ.get('AWS_LAMBDA_FUNCTION_NAME') or not os.access(BASE_DIR, os.W_OK):
     app.config['UPLOAD_FOLDER'] = os.path.join('/tmp', 'uploads')
 else:
@@ -33,41 +34,31 @@ app.config['TEMPLATES_AUTO_RELOAD'] = True
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
 Bootstrap(app)
 
-# Copy demo files on startup if writable
-demo_files = ['brad_pitt.jpg', 'sketch.png', 'picasso_seated_nude_hr.jpg', 'la_muse.jpg']
-examples_dir = os.path.join(BASE_DIR, 'examples')
-for fname in demo_files:
-    src = os.path.join(examples_dir, fname)
-    dst = os.path.join(app.config['UPLOAD_FOLDER'], fname)
-    if os.path.exists(src) and not os.path.exists(dst):
-        try:
-            shutil.copy(src, dst)
-        except Exception:
-            pass
 
-# Helper to locate images across uploads, examples, style_data
-def resolve_image_path(filename):
+def resolve_input_image_path(filename):
+    """Resolve content or style input image from uploads or bundled sample presets."""
     if not filename:
         return None
-    # 1. Check upload folder (/tmp/uploads or static/uploads)
+    # 1. User uploaded file in upload folder
     p = os.path.join(app.config['UPLOAD_FOLDER'], filename)
     if os.path.exists(p):
         return p
-    # 2. Check examples folder (for demo presets)
-    p = os.path.join(BASE_DIR, 'examples', filename)
-    if os.path.exists(p):
-        return p
-    # 3. Check style_data folder
+    # 2. Preset images in style_data
     p = os.path.join(BASE_DIR, 'style_data', filename)
     if os.path.exists(p):
         return p
-    # 4. Check static/uploads folder
+    # 3. Preset images in examples
+    p = os.path.join(BASE_DIR, 'examples', filename)
+    if os.path.exists(p):
+        return p
+    # 4. Fallback in static/uploads
     p = os.path.join(BASE_DIR, 'static', 'uploads', filename)
     if os.path.exists(p):
         return p
-    return os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    return None
 
-# ── ONNX Runtime sessions (loaded once at startup) ────────────────────────────
+
+# ── ONNX Runtime Inference Sessions ──────────────────────────────────────────
 _encoder_sess = ort.InferenceSession(
     os.path.join(BASE_DIR, 'encoder.onnx'),
     providers=['CPUExecutionProvider']
@@ -93,48 +84,53 @@ def allowed_file(filename):
 
 
 def _preprocess(pil_img, size=512):
-    """Resize shortest side to `size`, convert to float32 NCHW in [0,1]."""
+    """Resize shortest side to size, maintain aspect ratio, convert to float32 NCHW [0, 1]."""
     w, h = pil_img.size
     if w < h:
-        new_w, new_h = size, int(h * size / w)
+        new_w, new_h = size, int(round(h * size / w))
     else:
-        new_w, new_h = int(w * size / h), size
+        new_w, new_h = int(round(w * size / h)), size
     pil_img = pil_img.resize((new_w, new_h), Image.BILINEAR)
-    arr = np.array(pil_img, dtype=np.float32) / 255.0   # HWC [0,1]
-    arr = arr.transpose(2, 0, 1)[np.newaxis]             # NCHW
+    arr = np.array(pil_img, dtype=np.float32) / 255.0  # HWC [0, 1]
+    arr = arr.transpose(2, 0, 1)[np.newaxis]            # NCHW
     return arr
 
 
 def _adain(content_feat, style_feat, eps=1e-5):
-    """Adaptive Instance Normalization in pure NumPy."""
+    """Adaptive Instance Normalization in NumPy matching PyTorch implementation exactly."""
     c_mean = content_feat.mean(axis=(2, 3), keepdims=True)
-    c_std  = content_feat.std(axis=(2, 3), keepdims=True) + eps
+    c_var = np.var(content_feat, axis=(2, 3), keepdims=True)
+    c_std = np.sqrt(c_var + eps)
+
     s_mean = style_feat.mean(axis=(2, 3), keepdims=True)
-    s_std  = style_feat.std(axis=(2, 3), keepdims=True) + eps
-    return s_std * (content_feat - c_mean) / c_std + s_mean
+    s_var = np.var(style_feat, axis=(2, 3), keepdims=True)
+    s_std = np.sqrt(s_var + eps)
+
+    normalized = (content_feat - c_mean) / c_std
+    return s_std * normalized + s_mean
 
 
-def style_transfer(content_pil, style_pil, alpha):
-    """Full pipeline using ONNX Runtime."""
+def run_style_transfer(content_pil, style_pil, alpha=1.0):
+    """Executes live AdaIN neural style transfer with ONNX encoder & decoder."""
     content_arr = _preprocess(content_pil)
-    style_arr   = _preprocess(style_pil)
+    style_arr = _preprocess(style_pil)
 
-    # Encode
-    content_feats = _encoder_sess.run(['features'], {'image': content_arr})[0]
-    style_feats   = _encoder_sess.run(['features'], {'image': style_arr})[0]
+    # 1. Extract feature maps at relu4_1
+    c_feats = _encoder_sess.run(['features'], {'image': content_arr})[0]
+    s_feats = _encoder_sess.run(['features'], {'image': style_arr})[0]
 
-    # AdaIN + alpha blend
-    stylized_feats = _adain(content_feats, style_feats)
-    blended        = alpha * stylized_feats + (1.0 - alpha) * content_feats
+    # 2. Perform AdaIN statistical alignment and alpha interpolation
+    stylized_feats = _adain(c_feats, s_feats)
+    blended_feats = alpha * stylized_feats + (1.0 - alpha) * c_feats
 
-    # Decode
-    output = _decoder_sess.run(['image'], {'features': blended.astype(np.float32)})[0]
+    # 3. Decode features back to RGB image
+    out_arr = _decoder_sess.run(['image'], {'features': blended_feats.astype(np.float32)})[0]
 
-    # Post-process: NCHW → HWC uint8
-    output = output.squeeze(0).transpose(1, 2, 0)
-    output = np.clip(output, 0.0, 1.0)
-    output = (output * 255).astype(np.uint8)
-    return Image.fromarray(output)
+    # 4. Post-process to PIL Image
+    out_arr = out_arr.squeeze(0).transpose(1, 2, 0)
+    out_arr = np.clip(out_arr, 0.0, 1.0)
+    out_uint8 = (out_arr * 255.0).astype(np.uint8)
+    return Image.fromarray(out_uint8)
 
 
 @app.route('/', methods=['GET', 'POST'])
@@ -146,53 +142,98 @@ def index():
     error = None
 
     if form.validate_on_submit():
-        if form.content.data and form.content.data.filename:
+        # Handle Content Image: Priority to freshly uploaded file
+        if form.content.data and hasattr(form.content.data, 'filename') and form.content.data.filename:
             if allowed_file(form.content.data.filename):
-                content_filename = secure_filename(form.content.data.filename)
-                form.content.data.save(os.path.join(app.config['UPLOAD_FOLDER'], content_filename))
+                ext = os.path.splitext(secure_filename(form.content.data.filename))[1].lower()
+                content_filename = f"content_{uuid.uuid4().hex[:8]}{ext}"
+                dest_path = os.path.join(app.config['UPLOAD_FOLDER'], content_filename)
+                form.content.data.save(dest_path)
                 form.content_path.data = content_filename
-        else:
+        elif form.content_path.data:
             content_filename = form.content_path.data
 
-        if form.style.data and form.style.data.filename:
+        # Handle Style Image: Priority to freshly uploaded file
+        if form.style.data and hasattr(form.style.data, 'filename') and form.style.data.filename:
             if allowed_file(form.style.data.filename):
-                style_filename = secure_filename(form.style.data.filename)
-                form.style.data.save(os.path.join(app.config['UPLOAD_FOLDER'], style_filename))
+                ext = os.path.splitext(secure_filename(form.style.data.filename))[1].lower()
+                style_filename = f"style_{uuid.uuid4().hex[:8]}{ext}"
+                dest_path = os.path.join(app.config['UPLOAD_FOLDER'], style_filename)
+                form.style.data.save(dest_path)
                 form.style_path.data = style_filename
-        else:
+        elif form.style_path.data:
             style_filename = form.style_path.data
 
         if content_filename and style_filename:
-            content_path = resolve_image_path(content_filename)
-            style_path   = resolve_image_path(style_filename)
-            try:
-                content_image = Image.open(content_path).convert('RGB')
-                style_image   = Image.open(style_path).convert('RGB')
-                alpha         = float(form.alpha.data)
-                stylized      = style_transfer(content_image, style_image, alpha)
-                result_filename = 'stylized_' + content_filename
-                result_dest   = os.path.join(app.config['UPLOAD_FOLDER'], result_filename)
-                stylized.save(result_dest)
-                result_image = result_filename
-            except Exception as e:
-                error = str(e)
-    else:
-        if request.method == 'POST':
-            if not content_filename:
-                error = 'Please select or upload content image'
-            elif not style_filename:
-                error = 'Please select or upload style image'
+            c_path = resolve_input_image_path(content_filename)
+            s_path = resolve_input_image_path(style_filename)
 
-    return render_template('index.html', form=form, result_image=result_image,
-                           content_image=content_filename,
-                           style_image=style_filename, error=error)
+            if not c_path or not os.path.exists(c_path):
+                error = f"Content image '{content_filename}' could not be loaded. Please re-upload."
+            elif not s_path or not os.path.exists(s_path):
+                error = f"Style image '{style_filename}' could not be loaded. Please re-upload."
+            else:
+                try:
+                    content_img = Image.open(c_path).convert('RGB')
+                    style_img = Image.open(s_path).convert('RGB')
+
+                    alpha = float(form.alpha.data) if form.alpha.data is not None else 1.0
+                    alpha = max(0.0, min(1.0, alpha))
+
+                    # Perform live neural style transfer
+                    stylized_img = run_style_transfer(content_img, style_img, alpha=alpha)
+
+                    # Save to unique filename to prevent any browser caching collisions
+                    unique_id = f"{int(time.time())}_{uuid.uuid4().hex[:6]}"
+                    result_filename = f"stylized_{unique_id}.jpg"
+                    result_path = os.path.join(app.config['UPLOAD_FOLDER'], result_filename)
+                    stylized_img.save(result_path, quality=95)
+
+                    result_image = result_filename
+                except Exception as e:
+                    error = f"Style transfer failed: {str(e)}"
+        else:
+            if request.method == 'POST':
+                if not content_filename:
+                    error = "Please upload or select a Content Image."
+                elif not style_filename:
+                    error = "Please upload or select a Style Image."
+
+    return render_template(
+        'index.html',
+        form=form,
+        result_image=result_image,
+        content_image=content_filename,
+        style_image=style_filename,
+        error=error,
+        cache_buster=int(time.time())
+    )
 
 
 @app.route('/uploads/<filename>')
 def send_image(filename):
-    path = resolve_image_path(filename)
-    if path and os.path.exists(path):
-        return send_from_directory(os.path.dirname(path), os.path.basename(path))
+    # 1. Generated stylized images and uploads from /tmp/uploads
+    upload_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    if os.path.exists(upload_path):
+        resp = make_response(send_from_directory(app.config['UPLOAD_FOLDER'], filename))
+        resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        return resp
+
+    # 2. Preset images from examples
+    ex_path = os.path.join(BASE_DIR, 'examples', filename)
+    if os.path.exists(ex_path):
+        return send_from_directory(os.path.join(BASE_DIR, 'examples'), filename)
+
+    # 3. Preset images from style_data
+    st_path = os.path.join(BASE_DIR, 'style_data', filename)
+    if os.path.exists(st_path):
+        return send_from_directory(os.path.join(BASE_DIR, 'style_data'), filename)
+
+    # 4. Preset images from static/uploads
+    fallback_path = os.path.join(BASE_DIR, 'static', 'uploads', filename)
+    if os.path.exists(fallback_path):
+        return send_from_directory(os.path.join(BASE_DIR, 'static', 'uploads'), filename)
+
     return "Image not found", 404
 
 
